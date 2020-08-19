@@ -1,10 +1,9 @@
 use anyhow::{bail, ensure, Context, Result};
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use toml_edit::{value, ArrayOfTables, Document, Item, Table};
 
-const CARGO_TOML: &str = "Cargo.toml";
+use crate::project::search_manifest;
 
 #[derive(Debug)]
 pub struct Manifest {
@@ -14,11 +13,8 @@ pub struct Manifest {
 impl Manifest {
     /// create Manifest with searching Cargo.toml from current path.
     pub fn new() -> Result<Self> {
-        let path = search_cargo_toml(
-            &env::current_dir().context("get current dir err")?,
-            CARGO_TOML,
-        )?;
-        Self::open(path.as_path())
+        let path = search_manifest()?;
+        Self::open(&path)
     }
 
     // TODO pub ?
@@ -90,34 +86,15 @@ impl ToString for Manifest {
     }
 }
 
-fn search_cargo_toml(start_dir: &PathBuf, file_name: &str) -> Result<PathBuf> {
-    let mut path = start_dir.as_path();
-    loop {
-        let toml = path.join(file_name);
-        if toml.exists() {
-            return Ok(toml);
-        }
-        path = path
-            .parent()
-            .with_context(|| format!("Cargo.toml not found search from: {:?}", start_dir))?
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn search() {
-        let dir = env::current_dir().unwrap().join("misc");
-        let file_path = search_cargo_toml(&dir, "test-cargo.toml").expect("search should be ok");
-        println!("file_path: {:?}", file_path);
-    }
+    use crate::project::*;
 
     #[test]
     fn open_manifest() {
-        let dir = env::current_dir().unwrap().join("misc");
-        let file_path = search_cargo_toml(&dir, "test-cargo.toml").unwrap();
+        let dir = std::env::current_dir().unwrap().join("misc");
+        let file_path = search_manifest_from(&dir, "test-cargo.toml").unwrap();
         let _manifest = Manifest::open(&file_path).unwrap();
     }
 
