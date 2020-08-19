@@ -1,23 +1,32 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cargo_bin::manifest::Manifest;
 use cargo_bin::project;
 
 fn main() -> Result<()> {
     let mut manifest = Manifest::new()?;
-    // println!("manifest path: {:?}", manifest);
 
-    manifest.add_bin("bin1", "src/b1.rs").unwrap();
-    manifest.add_bin("bin2", "src/b2.rs").unwrap();
-    manifest.add_bin("bin3", "src/b3.rs").unwrap();
-    manifest.add_bin("bin1", "src/2/b1.rs").unwrap();
-
-    println!("{}", "-".repeat(20));
-    println!("{}", manifest.to_string());
-
-    println!("---find main------");
-    let src_path = project::root_path()?.join("src");
+    let root_path = project::root_path()?;
+    let src_path = root_path.join("src");
     let main_files = project::find_main_file(&src_path)?;
-    println!("{:?}", main_files);
+
+    for entry in main_files.iter() {
+        let path = entry
+            .as_path()
+            .strip_prefix(&root_path)
+            .with_context(|| format!("path: {:?} strip prefix err", entry))?;
+        let name = path
+            .to_str()
+            .unwrap()
+            .strip_suffix(".rs")
+            .unwrap()
+            .strip_prefix("src/")
+            .unwrap()
+            .replace("/", "-");
+        println!("add bin: name: {:?}, path: {:?},", name, path);
+        manifest.add_bin(&name, path.to_str().unwrap())?;
+    }
+
+    manifest.write()?;
 
     Ok(())
 }

@@ -85,7 +85,7 @@ fn contains_main(path: &Path) -> Result<bool> {
     let ast = syn::parse_file(&content)?;
 
     let is_main = ast.items.iter().any(|v| match v {
-        Item::Fn(item) => item.sig.ident.to_string() == "main",
+        Item::Fn(item) => item.sig.ident == "main",
         _ => false,
     });
 

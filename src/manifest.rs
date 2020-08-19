@@ -1,6 +1,6 @@
 use anyhow::{bail, ensure, Context, Result};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use toml_edit::{value, ArrayOfTables, Document, Item, Table};
 
 use crate::project::search_manifest;
@@ -8,6 +8,7 @@ use crate::project::search_manifest;
 #[derive(Debug)]
 pub struct Manifest {
     root: Document,
+    path: PathBuf,
 }
 
 impl Manifest {
@@ -24,7 +25,10 @@ impl Manifest {
         let doc = v
             .parse::<Document>()
             .with_context(|| format!("parse toml file err, path: {:?}", path))?;
-        Ok(Self { root: doc })
+        Ok(Self {
+            root: doc,
+            path: path.to_path_buf(),
+        })
     }
 
     /// add bin, only support name and path for now
@@ -78,6 +82,12 @@ impl Manifest {
 
         Ok(())
     }
+
+    /// write changes to manifest file
+    pub fn write(&self) -> Result<()> {
+        fs::write(&self.path, self.root.to_string_in_original_order())?;
+        Ok(())
+    }
 }
 
 impl ToString for Manifest {
@@ -102,6 +112,7 @@ mod tests {
     fn add_bin() {
         let mut manifest = Manifest {
             root: Document::new(),
+            path: PathBuf::new(),
         };
         manifest.add_bin("bin1", "src/b1.rs").unwrap();
         manifest.add_bin("bin2", "src/b2.rs").unwrap();
