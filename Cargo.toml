@@ -3,13 +3,29 @@ name = "cargo-bin"
 version = "0.1.0"
 authors = ["gensmusic <gensmusic@163.com>"]
 edition = "2018"
+license = "MIT"
+description = "help to manage all binares in Cargo.toml"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+documentation = "https://github.com/gensmusic/cargo-bin/blob/master/README.md"
+homepage = "https://github.com/gensmusic/cargo-bin"
+repository = "https://github.com/gensmusic/cargo-bin"
+readme = "README.md"
+
+keywords = [
+    "cargo",
+    "cargo-subcommand",
+    "cli",
+]
+categories = [
+    "development-tools",
+    "development-tools::cargo-plugins",
+]
+[[bin]]
+name = "cargo-bin"
+path = "src/bin/bin.rs"
 
 [dependencies]
 toml_edit = "0.2.0"
 anyhow = "1.0.32"
 syn = {version = "1.0", features= ["full"]}
-[[bin]]
-name = "bin-bin"
-path = "src/bin/bin.rs"
+
