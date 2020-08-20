@@ -28,4 +28,4 @@ path = "src/bin/bin.rs"
 toml_edit = "0.2.0"
 anyhow = "1.0.32"
 syn = {version = "1.0", features= ["full"]}
-
+structopt = "0.3.16"
