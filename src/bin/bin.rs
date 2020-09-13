@@ -69,7 +69,9 @@ fn main() -> Result<()> {
             new_binary(path, force, opt.dry_run)?;
         }
         Command::Remove {} => {}
-        Command::Tidy {} => {}
+        Command::Tidy {} => {
+            tide_binaries(opt.dry_run)?;
+        }
     }
 
     Ok(())
@@ -142,5 +144,9 @@ fn add_binaries(dry_run: bool) -> Result<()> {
 
     manifest.write()?;
 
+    Ok(())
+}
+
+fn tide_binaries(dry_run: bool) -> Result<()> {
     Ok(())
 }
