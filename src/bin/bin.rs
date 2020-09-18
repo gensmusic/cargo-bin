@@ -3,7 +3,7 @@ use cargo_bin::manifest::Manifest;
 use cargo_bin::project;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -22,6 +22,10 @@ enum Command {
         /// force create to override existing binary file
         #[structopt(short = "f", long)]
         force: bool,
+
+        /// search main from root path, default is src
+        #[structopt(long = "from_root")]
+        from_root: bool,
     },
     /// Add missing and remove unused
     Tidy {},
@@ -59,14 +63,25 @@ fn main() -> Result<()> {
 
     match opt.cmd {
         Command::Add {} => {
-            add_binaries(opt.dry_run)?;
+            add_binaries(AddArgs {
+                from_root: false, // TODO
+                dry_run: opt.dry_run,
+                verbose: opt.verbose,
+            })?;
         }
         Command::New {
             path,
             assume_yes: _,
             force,
+            from_root,
         } => {
-            new_binary(path, force, opt.dry_run)?;
+            new_binary(NewBinaryArgs {
+                path,
+                force,
+                from_root,
+                dry_run: opt.dry_run,
+                verbose: opt.verbose,
+            })?;
         }
         Command::Remove {} => {}
         Command::Tidy {} => {
@@ -77,10 +92,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn new_binary(path: String, force: bool, dry_run: bool) -> Result<()> {
-    ensure!(!path.is_empty(), "path cannot be empty");
+struct NewBinaryArgs {
+    path: String,
+    force: bool,
+    from_root: bool,
+    dry_run: bool,
+    verbose: bool,
+}
 
-    let mut path = path;
+fn new_binary(args: NewBinaryArgs) -> Result<()> {
+    let mut path = args.path.clone();
+    ensure!(!path.is_empty(), "path cannot be empty");
     if !path.ends_with(".rs") {
         path.push_str(".rs");
     }
@@ -88,13 +110,13 @@ fn new_binary(path: String, force: bool, dry_run: bool) -> Result<()> {
     let path = Path::new(&path);
     if path.exists() {
         ensure!(path.is_file(), "{:?} already exits and is not a file", path);
-        if !force {
+        if !args.force {
             bail!("{:?} already exists, use --force to override it", path);
         }
     }
 
     println!("create {:?}", path);
-    if !dry_run {
+    if !args.dry_run {
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -110,34 +132,51 @@ fn main() {
     }
 
     // TODO only add the new one
-    add_binaries(dry_run)?;
+
+    add_binaries(AddArgs {
+        from_root: args.from_root,
+        dry_run: args.dry_run,
+        verbose: args.verbose,
+    })?;
 
     Ok(())
 }
 
-fn add_binaries(dry_run: bool) -> Result<()> {
+pub struct AddArgs {
+    from_root: bool,
+    dry_run: bool,
+    verbose: bool,
+}
+
+fn add_binaries(args: AddArgs) -> Result<()> {
     let mut manifest = Manifest::new()?;
 
     let root_path = project::root_path()?;
     let src_path = root_path.join("src");
-    // TODO verbose print search path
-    let main_files = project::find_main_file(&src_path)?;
+    let search_path = if args.from_root {
+        root_path.clone()
+    } else {
+        src_path.clone()
+    };
+    if args.verbose {
+        println!("search_path: {:?}", search_path);
+    }
+    // TODO search path must in root path
+    let main_files = project::find_main_file(&search_path)?;
 
     for entry in main_files.iter() {
         let path = entry
             .as_path()
             .strip_prefix(&root_path)
             .with_context(|| format!("path: {:?} strip prefix err", entry))?;
-        let name = path
-            .to_str()
-            .unwrap()
-            .strip_suffix(".rs")
-            .unwrap()
-            .strip_prefix("src/")
-            .unwrap()
-            .replace("/", "-");
+        let mut name = path.to_str().unwrap().strip_suffix(".rs").unwrap();
+        if !args.from_root {
+            name = name.strip_prefix("src/").unwrap();
+        }
+        let name = name.replace("/", "-");
+
         println!("add bin: name: {:?}, path: {:?},", name, path);
-        if !dry_run {
+        if !args.dry_run {
             manifest.add_bin(&name, path.to_str().unwrap())?;
         }
     }
