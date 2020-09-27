@@ -3,13 +3,13 @@ use cargo_bin::manifest::Manifest;
 use cargo_bin::project;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt()]
 enum Command {
-    /// Create a new binary in current folder.
+    /// Create a new binary in current folder. Use --force to override if binary already exists.
     New {
         /// Binary path or name.
         #[structopt()]
@@ -22,16 +22,12 @@ enum Command {
         /// force create to override existing binary file
         #[structopt(short = "f", long)]
         force: bool,
-
-        /// search main from root path, default is src
-        #[structopt(long = "from_root")]
-        from_root: bool,
     },
     /// Add missing and remove unused
     Tidy {},
     /// Remove binary
     Remove {},
-    /// Add binaries
+    /// Add existing binaries to Cargo.toml, abort if binary doesn't exists.
     Add {},
 }
 
@@ -48,6 +44,10 @@ struct Opt {
     /// dry run
     #[structopt(long, global = true)]
     dry_run: bool,
+
+    /// search main from root path, default is src
+    #[structopt(long, global = true)]
+    from_root: bool,
 }
 
 fn main() -> Result<()> {
@@ -73,12 +73,11 @@ fn main() -> Result<()> {
             path,
             assume_yes: _,
             force,
-            from_root,
         } => {
             new_binary(NewBinaryArgs {
                 path,
                 force,
-                from_root,
+                from_root: opt.from_root,
                 dry_run: opt.dry_run,
                 verbose: opt.verbose,
             })?;
@@ -156,7 +155,7 @@ fn add_binaries(args: AddArgs) -> Result<()> {
     let search_path = if args.from_root {
         root_path.clone()
     } else {
-        src_path.clone()
+        src_path
     };
     if args.verbose {
         println!("search_path: {:?}", search_path);
@@ -186,6 +185,6 @@ fn add_binaries(args: AddArgs) -> Result<()> {
     Ok(())
 }
 
-fn tide_binaries(dry_run: bool) -> Result<()> {
+fn tide_binaries(_dry_run: bool) -> Result<()> {
     Ok(())
 }
