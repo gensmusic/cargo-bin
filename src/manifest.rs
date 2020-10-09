@@ -120,6 +120,18 @@ impl Manifest {
         }
     }
 
+    /// iterate every bins with a closure
+    pub fn foreach_bin<F>(&self, mut f: F)
+    where
+        F: FnMut(Option<&str>, Option<&str>),
+    {
+        for item in self.bins().iter() {
+            let name = item[KEY_BIN_NAME].as_str();
+            let path = item[KEY_BIN_PATH].as_str();
+            f(name, path);
+        }
+    }
+
     /// Write changes to manifest file
     pub fn write(&self) -> Result<()> {
         fs::write(&self.path, self.root.to_string_in_original_order())?;
@@ -216,5 +228,28 @@ path = "src/2/b1.rs"
         manifest.add_bin("bin1", "src/b1.rs").unwrap();
         assert_eq!(manifest.find_bin("bin1", "").unwrap(), 0);
         assert_eq!(manifest.find_bin("", "src/b1.rs").unwrap(), 0);
+    }
+
+    #[test]
+    fn foreach_bin() -> Result<()> {
+        let mut manifest = new_empty_manifest();
+        manifest.add_bin("bin1", "src/b1.rs")?;
+        manifest.add_bin("bin2", "src/b2.rs")?;
+        manifest.add_bin("bin3", "src/b3.rs")?;
+
+        let mut bins = vec![];
+        manifest.foreach_bin(|name, path| {
+            let name = name.unwrap_or_default().to_string();
+            let path = path.unwrap_or_default().to_string();
+            bins.push((name, path));
+        });
+
+        assert_eq!(3, bins.len());
+        bins.sort();
+        assert_eq!(bins[0], ("bin1".to_string(), "src/b1.rs".to_string()));
+        assert_eq!(bins[1], ("bin2".to_string(), "src/b2.rs".to_string()));
+        assert_eq!(bins[2], ("bin3".to_string(), "src/b3.rs".to_string()));
+
+        Ok(())
     }
 }
