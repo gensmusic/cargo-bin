@@ -32,7 +32,7 @@ impl Manifest {
         // make sure bin is initialized
         let item = &doc[KEY_BIN];
         match item {
-            Item::ArrayOfTables(v) => {
+            Item::ArrayOfTables(_) => {
                 // already exists bin
             }
             Item::None => {
@@ -188,9 +188,9 @@ path = "src/2/b1.rs"
     fn get_bins() -> Result<()> {
         let mut manifest = new_empty_manifest();
         assert_eq!(0, manifest.bins().len());
-        manifest.add_bin("bin1", "src/b1.rs");
+        manifest.add_bin("bin1", "src/b1.rs")?;
         assert_eq!(1, manifest.bins().len());
-        manifest.add_bin("bin2", "src/b2.rs");
+        manifest.add_bin("bin2", "src/b2.rs")?;
         assert_eq!(2, manifest.bins().len());
 
         Ok(())
@@ -201,7 +201,7 @@ path = "src/2/b1.rs"
         let mut manifest = new_empty_manifest();
         assert!(!manifest.exists("bin1", "src/b1.rs"));
 
-        manifest.add_bin("bin1", "src/b1.rs");
+        manifest.add_bin("bin1", "src/b1.rs")?;
         assert!(manifest.exists("bin1", ""));
         assert!(manifest.exists("", "src/b1.rs"));
         Ok(())
@@ -213,7 +213,7 @@ path = "src/2/b1.rs"
         let index = manifest.find_bin("bin1", "src/b1.rs");
         assert!(index.is_none());
 
-        manifest.add_bin("bin1", "src/b1.rs");
+        manifest.add_bin("bin1", "src/b1.rs").unwrap();
         assert_eq!(manifest.find_bin("bin1", "").unwrap(), 0);
         assert_eq!(manifest.find_bin("", "src/b1.rs").unwrap(), 0);
     }

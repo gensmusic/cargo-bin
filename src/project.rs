@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io::Read;
@@ -7,14 +8,14 @@ use syn::Item;
 
 const CARGO_TOML: &str = "Cargo.toml";
 
-/// return cargo project root path
+/// return cargo project root path (absolute path)
 pub fn root_path() -> Result<PathBuf> {
     let manifest = search_manifest()?;
     let root = manifest
         .parent()
-        .with_context(|| format!("{:?} has no parent", manifest))?
-        .to_path_buf();
-    Ok(root)
+        .with_context(|| format!("{:?} has no parent", manifest))?;
+    // to absolute path
+    fs::canonicalize(root).context("root path convert to absolute err")
 }
 
 /// search from current_dir() with name Cargo.toml
@@ -25,14 +26,15 @@ pub fn search_manifest() -> Result<PathBuf> {
     )
 }
 
-/// search manifest from dir with specified filename
+/// search manifest from dir with specified filename (absolute path)
 pub fn search_manifest_from(start_dir: &PathBuf, file_name: &str) -> Result<PathBuf> {
     let mut path = start_dir.as_path();
     loop {
         let toml = path.join(file_name);
         if toml.exists() {
-            return Ok(toml);
+            return fs::canonicalize(toml).context("manifest path convert to absolute path err");
         }
+
         path = path
             .parent()
             .with_context(|| format!("Cargo.toml not found search from: {:?}", start_dir))?
@@ -40,18 +42,26 @@ pub fn search_manifest_from(start_dir: &PathBuf, file_name: &str) -> Result<Path
 }
 
 /// find rust source file with main() from the specified dir
+/// TODO for now ignore some folders like target, .git, .github
 pub fn find_main_file(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut ignored_folders = HashSet::new();
+    for folder in ["target", "src/bin", ".git", ".github"].iter() {
+        ignored_folders.insert(dir.join(*folder));
+    }
     let mut files = vec![];
 
-    fn find(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    fn find(dir: &Path, files: &mut Vec<PathBuf>, ignored: &HashSet<PathBuf>) -> Result<()> {
         if !dir.is_dir() {
+            return Ok(());
+        }
+        if ignored.contains(&dir.to_path_buf()) {
             return Ok(());
         }
         for entry in fs::read_dir(dir).with_context(|| format!("read_dir err, dir: {:?}", dir))? {
             let entry = entry.with_context(|| "dir entry err")?;
             let path = entry.path();
             if path.is_dir() {
-                find(&path, files)?;
+                find(&path, files, ignored)?;
                 continue;
             }
 
@@ -70,7 +80,7 @@ pub fn find_main_file(dir: &Path) -> Result<Vec<PathBuf>> {
         Ok(())
     }
 
-    find(dir, &mut files)?;
+    find(dir, &mut files, &ignored_folders)?;
 
     Ok(files)
 }
