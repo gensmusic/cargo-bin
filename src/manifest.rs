@@ -15,7 +15,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// create Manifest with searching Cargo.toml from current path.
+    /// Create a Manifest with searching Cargo.toml from current path.
     pub fn new() -> Result<Self> {
         let path = search_manifest()?;
         Self::open(&path)
@@ -62,65 +62,65 @@ impl Manifest {
         }
     }
 
-    /// check if same binary exists.
+    /// Check if same binary exists.
     /// exists means name or path is equal to some existed ones.
     pub fn exists(&self, name: &str, path: &str) -> bool {
-        for bin_table in self.bins().iter() {
-            if let Some(v) = bin_table[KEY_BIN_NAME].as_str() {
-                if v == name {
-                    return true;
+        self.find_bin(name, path).is_some()
+    }
+
+    /// Find a bin's index within ArrayTable, cannot use ArrayTable's iter()
+    /// because there is filter in it.
+    fn find_bin(&self, name: &str, path: &str) -> Option<usize> {
+        let bins = self.bins();
+        for i in 0..bins.len() {
+            if let Some(item) = bins.get(i) {
+                if let Some(v) = item[KEY_BIN_NAME].as_str() {
+                    if v == name {
+                        return Some(i);
+                    }
                 }
-            }
-            if let Some(v) = bin_table[KEY_BIN_PATH].as_str() {
-                if v == path {
-                    return true;
+                if let Some(v) = item[KEY_BIN_PATH].as_str() {
+                    if v == path {
+                        return Some(i);
+                    }
                 }
             }
         }
-        false
+        None
     }
 
-    /// add bin, only support name and path for now
-    /// see cargo book: https://doc.rust-lang.org/cargo/reference/cargo-targets.html#configuring-a-target
+    /// Add a bin, only support name and path for now.
+    /// If a bin with same name or path already exists, will remove it first
+    /// then add the new one.
+    ///  About Cargo.toml bin, see cargo book: https://doc.rust-lang.org/cargo/reference/cargo-targets.html#configuring-a-target
     pub fn add_bin(&mut self, name: &str, path: &str) -> Result<()> {
         ensure!(!name.is_empty(), "bin.name cannot be empty");
         ensure!(!path.is_empty(), "bin.path cannot be empty");
 
-        let bins = self.bins_mut();
-
-        // remove the same name or path
-        let keys = vec![(KEY_BIN_NAME, name), (KEY_BIN_PATH, path)];
-        let mut to_removed = vec![];
-        for i in 0..bins.len() {
-            let table = bins
-                .get_mut(i)
-                .with_context(|| format!("array of tables should exists at index {:?}", i))?;
-            for (key, val) in keys.iter() {
-                let field = &table[*key];
-                ensure!(
-                    field.is_str(),
-                    "{} should be type str instead of {:?}",
-                    *key,
-                    field
-                );
-                if field.as_str().unwrap() == *val {
-                    to_removed.push(i);
-                    break;
-                }
-            }
-        }
-        to_removed.iter().for_each(|&i| bins.remove(i));
+        // remove first
+        self.remove_bin(name, path);
 
         // append new bin
         let mut table = Table::default();
         table[KEY_BIN_NAME] = value(name);
         table[KEY_BIN_PATH] = value(path);
-        bins.append(table);
+        self.bins_mut().append(table);
 
         Ok(())
     }
 
-    /// write changes to manifest file
+    /// Remove a bin from manifest. Return true if found and delete.
+    pub fn remove_bin(&mut self, name: &str, path: &str) -> bool {
+        match self.find_bin(name, path) {
+            Some(index) => {
+                self.bins_mut().remove(index);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Write changes to manifest file
     pub fn write(&self) -> Result<()> {
         fs::write(&self.path, self.root.to_string_in_original_order())?;
         Ok(())
@@ -200,9 +200,21 @@ path = "src/2/b1.rs"
     fn bin_exists() -> Result<()> {
         let mut manifest = new_empty_manifest();
         assert!(!manifest.exists("bin1", "src/b1.rs"));
+
         manifest.add_bin("bin1", "src/b1.rs");
         assert!(manifest.exists("bin1", ""));
         assert!(manifest.exists("", "src/b1.rs"));
         Ok(())
+    }
+
+    #[test]
+    fn find_bin() {
+        let mut manifest = new_empty_manifest();
+        let index = manifest.find_bin("bin1", "src/b1.rs");
+        assert!(index.is_none());
+
+        manifest.add_bin("bin1", "src/b1.rs");
+        assert_eq!(manifest.find_bin("bin1", "").unwrap(), 0);
+        assert_eq!(manifest.find_bin("", "src/b1.rs").unwrap(), 0);
     }
 }
