@@ -15,9 +15,32 @@ cargo install cargo-bin
 
 # usage
 
+## create a new binary main file and add into Cargo.toml
+
+Create a new binary `abc` and add into Cargo.toml.
+The following will create a file abc.rs with a default `fn main()` in current folder.
+And a `[[bin]]` will be added into the Cargo.toml.
+
 ```shell script
-# Create a new binary bin1 and add into Cargo.toml
-# The following will create a file bin1.rs with a default main in current folder.
-# And a [[bin]] will be added into the Cargo.toml
-cargo bin new bin1 # or cargo bin new bin1.rs
+cd src
+cargo bin new abc
+# or
+cargo bin new abc.rs
+```
+
+The Cargo.toml file.
+
+```toml
+[[bin]]
+name = "abc"
+path = "src/abc.rs"
+```
+
+## tidy
+
+`cargo bin tidy` will add all `.rs` file with a `main` function into Cargo.toml.
+It will also clean up all the invalid `[[bin]]`s which doesn't exists.
+
+```shell script
+cargo bin tidy
 ```
