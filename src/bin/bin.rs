@@ -168,7 +168,10 @@ pub struct AddArgs {
 fn add_binaries(args: AddArgs) -> Result<()> {
     let mut manifest = Manifest::new()?;
 
-    let BinInfo { name, path } = get_bin_info(&args.bin_path, args.root_path.to_str().unwrap())?;
+    let BinInfo { name, path } = get_bin_info(
+        &args.bin_path.to_str().unwrap(),
+        args.root_path.to_str().unwrap(),
+    )?;
 
     if manifest.exists(&name, &path) {
         if !args.force {
@@ -206,10 +209,36 @@ struct TideArgs {
 fn tide_binaries(args: TideArgs) -> Result<()> {
     let mut manifest = Manifest::new()?;
 
+    // check existing bins
+    let mut to_remove = vec![];
+    manifest.foreach_bin(|name, path| {
+        let name = name.unwrap_or_default().to_string();
+        let path = path.unwrap_or_default().to_string();
+
+        if name.is_empty() || path.is_empty() {
+            println!("invalid bin, empty name: {} or path: {}", name, path);
+            return;
+        }
+
+        // path not exists should be removed
+        if !Path::new(&path).exists() {
+            to_remove.push((name, path));
+        }
+    });
+    for (name, path) in to_remove {
+        println!("remove {} -> {}", name, path);
+        manifest.remove_bin(&name, &path);
+    }
+
     // add the new main files
     let main_files = project::find_main_file(&args.root_path)?;
     for entry in main_files.iter() {
-        let BinInfo { name, path } = get_bin_info(entry, args.root_path.to_str().unwrap())?;
+        // canonicalize will check if file exists
+        let bin_path = fs::canonicalize(entry)
+            .with_context(|| format!("{:?} convert to absolute path err", entry))?;
+
+        let BinInfo { name, path } =
+            get_bin_info(bin_path.to_str().unwrap(), args.root_path.to_str().unwrap())?;
 
         if manifest.exists(&name, &path) {
             if args.verbose {
@@ -221,8 +250,6 @@ fn tide_binaries(args: TideArgs) -> Result<()> {
         println!("add new bin: name: {:?}, path: {:?},", name, path);
         manifest.add_bin(&name, &path)?;
     }
-
-    // check existing bins
 
     // write the changes
     if !args.dry_run {
@@ -250,36 +277,21 @@ struct BinInfo {
     path: String,
 }
 
-fn get_bin_info(bin_path: &Path, root_path: &str) -> Result<BinInfo> {
-    let mut root_path = root_path.to_string();
-    if !root_path.ends_with('/') {
-        root_path.push('/');
-    }
-
-    // convert to absolute path first
-    let bin_path = fs::canonicalize(bin_path).with_context(|| format!("{:?}", bin_path))?;
-
-    // path remove root path
+// get name and path without check.
+fn get_bin_info(bin_path: &str, root_path: &str) -> Result<BinInfo> {
+    // path remove root path if possible
     let path = bin_path
-        .to_str()
-        .and_then(|v| v.strip_prefix(&root_path))
-        .with_context(|| format!("get bin path err from: {:?}", bin_path))?;
+        .trim_start_matches(root_path)
+        .trim_start_matches('/');
 
     // name, remove src if it's under src folder
     let name = bin_path
-        .to_str()
-        .and_then(|v| v.strip_prefix(&root_path))
-        .and_then(|v| {
-            for prefix in ["src/", "src"].iter() {
-                if v.starts_with(*prefix) {
-                    return v.strip_prefix(*prefix);
-                }
-            }
-            Some(v)
-        })
-        .and_then(|v| v.strip_suffix(".rs"))
-        .map(|v| v.replace("/", "-"))
-        .with_context(|| format!("get bin name err, from: {:?}", bin_path))?;
+        .trim_start_matches(root_path)
+        .trim_start_matches('/')
+        .trim_start_matches("src")
+        .trim_start_matches('/')
+        .trim_end_matches(".rs")
+        .replace("/", "-");
 
     Ok(BinInfo {
         name,
