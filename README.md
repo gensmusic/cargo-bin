@@ -15,7 +15,9 @@ cargo install cargo-bin
 
 # usage
 
-## create a new binary main file and add into Cargo.toml
+## new
+
+Create a new binary main file and add into Cargo.toml.
 
 Create a new binary `abc` and add into Cargo.toml.
 The following will create a file abc.rs with a default `fn main()` in current folder.
